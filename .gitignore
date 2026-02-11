@@ -1,0 +1,15 @@
+# Gradle
+build/
+.gradle/
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+
+# Generated
+metrics.csv
+results/
+

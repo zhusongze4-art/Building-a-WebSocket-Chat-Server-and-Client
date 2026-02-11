@@ -1,0 +1,4 @@
+allprojects {
+    group = 'cs6650'
+    version = '1.0'
+}
