@@ -12,7 +12,7 @@
 
 - part2-ec2-security-group-config.png – Security group configuration
 - part2-server-build-success.png – Server build success on EC2
-- Par1_ec2-instance-running.png – EC2 instance running
+- ec2-instance-running.png – EC2 instance running
 
 ## Part 3 – Performance Analysis
 
