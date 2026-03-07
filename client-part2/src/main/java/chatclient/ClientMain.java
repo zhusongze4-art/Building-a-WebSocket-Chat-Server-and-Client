@@ -13,8 +13,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ClientMain {
 
   public static void main(String[] args) throws Exception {
-    String host = "localhost";
-    int wsPort = 8080;
+    String host = "chat-alb-230508812.us-east-2.elb.amazonaws.com";
+    int wsPort = 80;
 
     int totalMessages = 500_000;
 

@@ -11,17 +11,17 @@ java {
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'org.java-websocket:Java-WebSocket:1.5.6'
+    implementation 'com.rabbitmq:amqp-client:5.20.0'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
-    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.2'
+    implementation 'org.java-websocket:Java-WebSocket:1.5.6'
 }
 
 application {
-    mainClass = 'chatclient.ClientMainPart2'
+    mainClass = 'consumer.ConsumerMain'
 }
 
 jar {
-    manifest { attributes 'Main-Class': 'chatclient.ClientMainPart2' }
+    manifest { attributes 'Main-Class': 'consumer.ConsumerMain' }
     from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
