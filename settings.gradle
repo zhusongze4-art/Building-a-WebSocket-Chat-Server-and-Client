@@ -1,3 +1,2 @@
 rootProject.name = 'CS6650_Assignment1'
-
-include 'server', 'client-part1', 'client-part2', 'consumer'
+include 'server', 'client-part1', 'client-part2', 'consumer', 'consumer-v3'

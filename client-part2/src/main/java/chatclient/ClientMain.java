@@ -7,16 +7,23 @@ import chatclient.metrics3.LatencyStats;
 import chatclient.metrics3.ThroughputBuckets;
 import chatclient.net.ConnectionPool;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.concurrent.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ClientMain {
 
+  // ── Assignment 3: Metrics API endpoint ──
+  private static final String METRICS_API_URL = "http://18.118.34.227:8081";
+
   public static void main(String[] args) throws Exception {
     String host = "chat-alb-230508812.us-east-2.elb.amazonaws.com";
     int wsPort = 80;
 
-    int totalMessages = 500_000;
+    int totalMessages = 1_000_000;
 
     int warmupThreads = 32;
     int warmupPerThread = 1000;
@@ -140,6 +147,63 @@ public class ClientMain {
     buckets.printBucketsAsMsgPerSec();
 
     System.out.println("CSV written to: metrics.csv");
+
+    // ═══════════════════════════════════════════════════
+    // Assignment 3: Call Metrics API and log results
+    // ═══════════════════════════════════════════════════
+    System.out.println("\n=== ASSIGNMENT 3: DATABASE METRICS ===");
+
+    // Wait a few seconds for the consumer to finish writing to DB
+    System.out.println("Waiting 10s for database writes to complete...");
+    Thread.sleep(10000);
+
+    // Call /metrics/all endpoint
+    System.out.println("--- /metrics/all ---");
+    String allMetrics = httpGet(METRICS_API_URL + "/metrics/all");
+    System.out.println(allMetrics);
+
+    // Call /metrics/rooms endpoint
+    System.out.println("\n--- /metrics/rooms ---");
+    String roomMetrics = httpGet(METRICS_API_URL + "/metrics/rooms");
+    System.out.println(roomMetrics);
+
+    // Call /metrics/users endpoint
+    System.out.println("\n--- /metrics/users ---");
+    String userMetrics = httpGet(METRICS_API_URL + "/metrics/users");
+    System.out.println(userMetrics);
+
+    // Call /metrics/messages for room 1
+    System.out.println("\n--- /metrics/messages (room 1, sample) ---");
+    String roomMsgs = httpGet(METRICS_API_URL + "/metrics/messages?roomId=1&start=2026-01-01T00:00:00&end=2026-12-31T23:59:59");
+    System.out.println(roomMsgs);
+
+    System.out.println("\n=== ASSIGNMENT 3 METRICS COMPLETE ===");
+  }
+
+  /**
+   * Simple HTTP GET helper for calling the Metrics API.
+   */
+  private static String httpGet(String urlStr) {
+    try {
+      HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
+      conn.setRequestMethod("GET");
+      conn.setConnectTimeout(10000);
+      conn.setReadTimeout(120000);
+
+      int status = conn.getResponseCode();
+      BufferedReader reader = new BufferedReader(
+          new InputStreamReader(status < 400 ? conn.getInputStream() : conn.getErrorStream()));
+
+      StringBuilder sb = new StringBuilder();
+      String line;
+      while ((line = reader.readLine()) != null) {
+        sb.append(line).append("\n");
+      }
+      reader.close();
+      return sb.toString().trim();
+    } catch (Exception e) {
+      return "{\"error\": \"Failed to call Metrics API: " + e.getMessage() + "\"}";
+    }
   }
 
   private static void printPhaseMetrics(Metrics m) {

@@ -1,65 +1,47 @@
 #!/bin/bash
-# Monitoring script for chat server system
-# Usage: ./monitor.sh
+# ============================================
+# CS6650 Assignment 3 - System Monitoring Script
+# Collects metrics from Consumer, MySQL, and RabbitMQ
+# Usage: ./monitor.sh <consumer-ip> <mysql-ip>
+# ============================================
 
-RABBITMQ_HOST="3.131.36.170"
-RABBITMQ_USER="admin"
-RABBITMQ_PASS="admin123"
-RABBITMQ_API="http://$RABBITMQ_HOST:15672/api"
+CONSUMER_IP=${1:-"18.118.34.227"}
+MYSQL_IP=${2:-"3.131.36.170"}
+INTERVAL=10
+LOG_FILE="monitoring_$(date +%Y%m%d_%H%M%S).log"
 
-SERVER_IPS=("3.15.157.223" "3.145.149.194" "3.23.131.241" "18.218.113.75")
+echo "=== CS6650 System Monitor ===" | tee "$LOG_FILE"
+echo "Consumer: $CONSUMER_IP | MySQL/RabbitMQ: $MYSQL_IP" | tee -a "$LOG_FILE"
+echo "Interval: ${INTERVAL}s | Log: $LOG_FILE" | tee -a "$LOG_FILE"
+echo "Started at: $(date)" | tee -a "$LOG_FILE"
+echo "========================================" | tee -a "$LOG_FILE"
 
-echo "=============================="
-echo " Chat System Monitor"
-echo " $(date)"
-echo "=============================="
+while true; do
+    TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
-# 1. Check RabbitMQ queue depths
-echo ""
-echo "[RabbitMQ] Queue depths:"
-for i in $(seq 1 20); do
-  DEPTH=$(curl -s -u $RABBITMQ_USER:$RABBITMQ_PASS \
-    "$RABBITMQ_API/queues/%2F/room.$i" \
-    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('messages',0))" 2>/dev/null)
-  if [ "$DEPTH" -gt "0" ] 2>/dev/null; then
-    echo "  room.$i: $DEPTH messages"
-  fi
+    # 1. Consumer Metrics API
+    METRICS=$(curl -s --connect-timeout 5 "http://$CONSUMER_IP:8081/metrics" 2>/dev/null)
+    if [ -n "$METRICS" ]; then
+        DB_WRITTEN=$(echo "$METRICS" | grep -o '"totalDbWritten":[0-9]*' | cut -d: -f2)
+        DB_ERRORS=$(echo "$METRICS" | grep -o '"totalDbErrors":[0-9]*' | cut -d: -f2)
+        BUFFER=$(echo "$METRICS" | grep -o '"currentBuffer":[0-9]*' | cut -d: -f2)
+        BATCHES=$(echo "$METRICS" | grep -o '"totalBatches":[0-9]*' | cut -d: -f2)
+    else
+        DB_WRITTEN="N/A"; DB_ERRORS="N/A"; BUFFER="N/A"; BATCHES="N/A"
+    fi
+
+    # 2. RabbitMQ Queue Depth
+    RABBIT_QUEUES=$(curl -s --connect-timeout 5 -u admin:admin123 \
+        "http://$MYSQL_IP:15672/api/queues" 2>/dev/null)
+    if [ -n "$RABBIT_QUEUES" ]; then
+        TOTAL_QUEUE_DEPTH=$(echo "$RABBIT_QUEUES" | grep -o '"messages":[0-9]*' | \
+            cut -d: -f2 | awk '{sum+=$1} END{print sum}')
+    else
+        TOTAL_QUEUE_DEPTH="N/A"
+    fi
+
+    # Log
+    echo "$TIMESTAMP | DB_Written=$DB_WRITTEN | DB_Errors=$DB_ERRORS | Buffer=$BUFFER | Batches=$BATCHES | QueueDepth=$TOTAL_QUEUE_DEPTH" | tee -a "$LOG_FILE"
+
+    sleep "$INTERVAL"
 done
-
-# 2. Check RabbitMQ message rates
-echo ""
-echo "[RabbitMQ] Message rates:"
-curl -s -u $RABBITMQ_USER:$RABBITMQ_PASS \
-  "$RABBITMQ_API/overview" \
-  | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-mr = d.get('message_stats', {})
-print('  Publish rate:  ', mr.get('publish_details', {}).get('rate', 0), 'msg/s')
-print('  Deliver rate:  ', mr.get('deliver_get_details', {}).get('rate', 0), 'msg/s')
-print('  Consumer ack:  ', mr.get('ack_details', {}).get('rate', 0), 'msg/s')
-" 2>/dev/null
-
-# 3. Check server health
-echo ""
-echo "[Servers] Health check:"
-for IP in "${SERVER_IPS[@]}"; do
-  STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 http://$IP:8081/health)
-  if [ "$STATUS" = "200" ]; then
-    echo "  $IP: OK"
-  else
-    echo "  $IP: UNHEALTHY (HTTP $STATUS)"
-  fi
-done
-
-# 4. Check consumer log (if run on consumer server)
-echo ""
-echo "[Consumer] Last 5 stats lines:"
-if [ -f ~/consumer.log ]; then
-  grep "Stats" ~/consumer.log | tail -5
-else
-  echo "  consumer.log not found (run this on consumer server)"
-fi
-
-echo ""
-echo "=============================="
